@@ -39,28 +39,21 @@ object Domain {
       Map(tuples: _*)
   }
 
-  class TopicPartitionTable private (
-      limit: Int,
-      var tables: Map[TopicPartition, LookupTable.Table]
-  ) {
-    def apply(tp: TopicPartition): LookupTable.Table = {
-      tables =
-        tables.updated(tp, tables.getOrElse(tp, LookupTable.Table(limit)))
+  class TopicPartitionTable private(var tables: Map[TopicPartition, Either[LookupTable.MemoryTable, LookupTable.RedisTable]], config: ConsumerGroupCollector.CollectorConfig) {
+    def apply(tp: TopicPartition): Either[LookupTable.MemoryTable, LookupTable.RedisTable] = {
+      tables = tables.updated(tp, tables.getOrElse(tp, LookupTable.Table(tp, config)))
       tables(tp)
     }
 
     def clear(evictedTps: List[TopicPartition]): Unit =
       tables = tables.filterKeys(tp => !evictedTps.contains(tp))
 
-    def all: Map[TopicPartition, LookupTable.Table] = tables
+    def all: Map[TopicPartition, Either[LookupTable.MemoryTable, LookupTable.RedisTable]] = tables
   }
 
   object TopicPartitionTable {
-    def apply(
-        limit: Int,
-        tables: Map[TopicPartition, LookupTable.Table] =
-          Map.empty[TopicPartition, LookupTable.Table]
-    ): TopicPartitionTable =
-      new TopicPartitionTable(limit, tables)
+    def apply(tables: Map[TopicPartition, Either[LookupTable.MemoryTable, LookupTable.RedisTable]] = Map.empty[TopicPartition, Either[LookupTable.MemoryTable, LookupTable.RedisTable]],
+              config: ConsumerGroupCollector.CollectorConfig): TopicPartitionTable =
+      new TopicPartitionTable(tables, config)
   }
 }

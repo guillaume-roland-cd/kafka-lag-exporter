@@ -200,6 +200,18 @@ helm install kafka-lag-exporter/kafka-lag-exporter \
   --set serviceAccount.create=true
 ```
 
+Install with redis persistence enabled
+
+```
+helm install kafka-lag-exporter/kafka-lag-exporter \
+  --name kafka-lag-exporter \
+  --namespace myproject \
+  --set redis.enabled=true \
+  --set redis.host=myredisserver \
+  --set clusters\[0\].name=my-cluster \
+  --set clusters\[0\].bootstrapBrokers=my-cluster-kafka-bootstrap.myproject:9092
+```
+
 Run a debug install (`DEBUG` logging, debug helm chart install, force docker pull policy to `Always`).
 
 ```
@@ -274,6 +286,7 @@ General Configuration (`kafka-lag-exporter{}`)
 | `client-group-id`             | `kafkalagexporter`   | Consumer group id of kafka-lag-exporter's client connections                                                                          |
 | `kafka-client-timeout`        | `10 seconds`         | Connection timeout when making API calls to Kafka                                                                                     |
 | `clusters`                    | `[]`                 | A statically defined list of Kafka connection details.  This list is optional if you choose to use the Strimzi auto-discovery feature |
+| `redis`                       | `{}`                 | Configuration for the redis persistence. This category is optional                                                                    |
 | `watchers`                    | `{}`                 | Settings for Kafka cluster "watchers" used for auto-discovery.                                                                        |
 | `metric-whitelist`            | `[".*"]`             | Regex of metrics to be exposed via Prometheus endpoint. Eg. `[".*_max_lag.*", "kafka_partition_latest_offset"]`                       |
 
@@ -290,6 +303,22 @@ Kafka Cluster Connection Details (`kafka-lag-exporter.clusters[]`)
 | `consumer-properties`     | `{}`        | No       | A map of key value pairs used to configure the `KafkaConsumer`. See the [Consumer Config](https://kafka.apache.org/documentation/#consumerconfigs) section of the Kafka documentation for options.        |
 | `admin-client-properties` | `{}`        | No       | A map of key value pairs used to configure the `AdminClient`. See the [Admin Config](https://kafka.apache.org/documentation/#adminclientconfigs) section of the Kafka documentation for options.          |
 | `labels`                  | `{}`        | No       | A map of key value pairs will be set as additional custom labels per cluster for all the metrics in prometheus.                                                                                           |
+
+Redis Details (`kafka-lag-exporter.redis{}`)
+
+| Key          | Default                | Required | Description                                                                                                         |
+|--------------|------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `enabled`    | `"false"`              | No       | Switch to enable or disable the Redis table (if enabled, the memory tables will not be created).                    |
+| `database`   | `0`                    | No       | Redis database number.                                                                                              |
+| `host`       | `"localhost"`          | No       | Redis server to use.                                                                                                |
+| `port`       | `6379`                 | No       | Redis port to use.                                                                                                  |
+| `timeout`    | `60`                   | No       | Redis connection timeout.                                                                                           |
+| `prefix`     | `"kafka-lag-exporter"` | No       | Prefix used by all the keys.                                                                                        |
+| `separator`  | `":"`                  | No       | Separator used to build the keys.                                                                                   |
+| `resolution` | `"1 minute"`           | No       | Resolution of the lookup table. Last point will get updated if the collection interval is less than the resolution. |
+| `retention`  | `"1 day"`              | No       | Retention of the lookup table. Points will get removed from the table after that.                                   |
+| `expiration` | `"1 day"`              | No       | Expiration (TTL) of all the keys                                                                                    |
+
 
 Watchers (`kafka-lag-exporters.watchers{}`)
 
@@ -328,6 +357,10 @@ kafka-lag-exporter {
       }
     }
   ]
+  redis = {
+    enabled = "true"
+    host = "myredis.prod"
+  }
 }
 ```
 

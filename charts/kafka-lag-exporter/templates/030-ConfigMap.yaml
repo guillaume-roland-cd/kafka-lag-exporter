@@ -73,6 +73,40 @@ data:
         }
         {{- end }}
       ]
+      {{- if .Values.redis.enabled }}
+      redis = {
+        {{- with .Values.redis.enabled }}
+        enabled = {{ . | quote }}
+        {{- end }}
+        {{- with .Values.redis.host }}
+        host = {{ . | quote }}
+        {{- end }}
+        {{- with .Values.redis.database }}
+        database = {{ . | quote }}
+        {{- end }}
+        {{- with .Values.redis.port }}
+        port = {{ . | quote }}
+        {{- end }}
+        {{- with .Values.redis.timeout }}
+        timeout = {{ . | quote }}
+        {{- end }}
+        {{- with .Values.redis.prefix }}
+        prefix = {{ . | quote }}
+        {{- end }}
+        {{- with .Values.redis.separator }}
+        separator = {{ . | quote }}
+        {{- end }}
+        {{- with .Values.redis.resolution }}
+        resolution = {{ . | quote }}
+        {{- end }}
+        {{- with .Values.redis.retention }}
+        retention = {{ . | quote }}
+        {{- end }}
+        {{- with .Values.redis.expiration }}
+        expiration = {{ . | quote }}
+        {{- end }}
+      }
+      {{- end }}
 
       {{- $sinks := list -}}
       {{- if .Values.reporters.prometheus.enabled }}
