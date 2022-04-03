@@ -454,7 +454,7 @@ Once we’ve built up an interpolation table of at least two values we can begin
 3. Interpolate inside (or extrapolate outside) the two points from the table we picked to predict a timestamp for when the last consumed message was first produced.
 4. Take the difference of the time of the last consumed offset (~ the current time) and the predicted timestamp to find the time lag.
 
-By default, the lookup table is stored in memory and have a limit of 60 points per topic per partition but you can enable the persistence of the table in Redis and increase the retention to reduce the risk of having to extrapolate the lag.
+By default, the lookup table is stored in JVM memory and has a limit of 60 points per topic per partition. The lookup table can also be stored in Redis to increase the retention and reduce the chance of having to extrapolate a lookup.
 
 Below you will find a diagram that demonstrates the interpolation use case.
 
