@@ -274,7 +274,7 @@ General Configuration (`kafka-lag-exporter{}`)
 | `client-group-id`             | `kafkalagexporter`   | Consumer group id of kafka-lag-exporter's client connections                                                                          |
 | `kafka-client-timeout`        | `10 seconds`         | Connection timeout when making API calls to Kafka                                                                                     |
 | `clusters`                    | `[]`                 | A statically defined list of Kafka connection details.  This list is optional if you choose to use the Strimzi auto-discovery feature |
-| `redis`                       | `{}`                 | Configuration for the redis persistence. This category is optional                                                                    |
+| `redis`                       | `{}`                 | Configuration for the Redis persistence. This category is optional                                                                    |
 | `watchers`                    | `{}`                 | Settings for Kafka cluster "watchers" used for auto-discovery.                                                                        |
 | `metric-whitelist`            | `[".*"]`             | Regex of metrics to be exposed via Prometheus endpoint. Eg. `[".*_max_lag.*", "kafka_partition_latest_offset"]`                       |
 
