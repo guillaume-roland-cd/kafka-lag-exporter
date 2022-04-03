@@ -296,7 +296,7 @@ Redis Details (`kafka-lag-exporter.redis{}`)
 
 | Key          | Default                | Required | Description                                                                                                         |
 |--------------|------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `enabled`    | `"false"`              | No       | Switch to enable or disable the Redis table (if enabled, the memory tables will not be created).                    |
+| `enabled`    | `false`                | No       | Switch to enable or disable the Redis table (if enabled, the memory tables will not be created).                    |
 | `database`   | `0`                    | No       | Redis database number.                                                                                              |
 | `host`       | `"localhost"`          | No       | Redis server to use.                                                                                                |
 | `port`       | `6379`                 | No       | Redis port to use.                                                                                                  |
