@@ -27,8 +27,19 @@ class LookupTableSpec extends AnyFreeSpec with Matchers {
     }
 
     "RedisTable" - {
-      val redisConfig = RedisConfig(enabled = true, resolution = 0.second, retention = Long.MaxValue.nanoseconds, expiration = 30.minute)
-      val config = ConsumerGroupCollector.CollectorConfig(0.second, 20, redisConfig, KafkaCluster("default", ""), Clock.fixed(Instant.ofEpochMilli(0), ZoneId.systemDefault()))
+      val redisConfig = RedisConfig(
+        enabled = true,
+        resolution = 0.second,
+        retention = Long.MaxValue.nanoseconds,
+        expiration = 30.minute
+      )
+      val config = ConsumerGroupCollector.CollectorConfig(
+        0.second,
+        20,
+        redisConfig,
+        KafkaCluster("default", ""),
+        Clock.fixed(Instant.ofEpochMilli(0), ZoneId.systemDefault())
+      )
       val redisClient = new RedisClient(host = "localhost", port = 6379)
       val table = Table(Domain.TopicPartition("topic", 0), config).right.get
 
@@ -72,10 +83,12 @@ class LookupTableSpec extends AnyFreeSpec with Matchers {
 
         val tests = List[Long](150, 190, 110, // interpolation
           10, 0, -100, // extrapolation under the table
-          300, 100, // extrapolation over the table
+          300, 100 // extrapolation over the table
         )
 
-        tests.foreach(expected => table.lookup(expected, redisClient) shouldBe Prediction(expected))
+        tests.foreach(expected =>
+          table.lookup(expected, redisClient) shouldBe Prediction(expected)
+        )
       }
 
       "lookups with flat sections" in {
@@ -88,7 +101,9 @@ class LookupTableSpec extends AnyFreeSpec with Matchers {
         table.addPoint(Point(200, 700), redisClient)
 
         if (table.length(redisClient) != 3) {
-          fail(s"Expected table to have 3 entries (it has ${table.length(redisClient)}). Table should truncate compress middle value for offset 200.")
+          fail(
+            s"Expected table to have 3 entries (it has ${table.length(redisClient)}). Table should truncate compress middle value for offset 200."
+          )
         }
 
         table.addPoint(Point(300, 730), redisClient)
@@ -96,7 +111,9 @@ class LookupTableSpec extends AnyFreeSpec with Matchers {
         table.addPoint(Point(400, 9030), redisClient)
 
         table.lookup(199, redisClient) shouldBe Prediction(59.7)
-        table.lookup(200, redisClient) shouldBe Prediction(700) // should find the latest (right hand side) of the flat section
+        table.lookup(200, redisClient) shouldBe Prediction(
+          700
+        ) // should find the latest (right hand side) of the flat section
         table.lookup(201, redisClient) shouldBe Prediction(700.3)
         table.lookup(250, redisClient) shouldBe Prediction(715)
         table.lookup(299, redisClient) shouldBe Prediction(729.7)
@@ -139,43 +156,84 @@ class LookupTableSpec extends AnyFreeSpec with Matchers {
           fail(s"Expected compressed table to have last timestamp $table")
         }
 
-        table.lookup(99, redisClient) shouldBe Prediction(Double.NegativeInfinity)
-        table.lookup(101, redisClient) shouldBe Prediction(Double.PositiveInfinity)
+        table.lookup(99, redisClient) shouldBe Prediction(
+          Double.NegativeInfinity
+        )
+        table.lookup(101, redisClient) shouldBe Prediction(
+          Double.PositiveInfinity
+        )
       }
 
       "table retention and resolution" in {
-        val _config = ConsumerGroupCollector.CollectorConfig(0.second, 20, RedisConfig(enabled = true, resolution = 1.seconds, retention = 2.seconds, expiration = 30.minute), KafkaCluster("default", ""), Clock.fixed(Instant.ofEpochMilli(0), ZoneId.systemDefault()))
+        val _config = ConsumerGroupCollector.CollectorConfig(
+          0.second,
+          20,
+          RedisConfig(
+            enabled = true,
+            resolution = 1.seconds,
+            retention = 2.seconds,
+            expiration = 30.minute
+          ),
+          KafkaCluster("default", ""),
+          Clock.fixed(Instant.ofEpochMilli(0), ZoneId.systemDefault())
+        )
         val table = Table(Domain.TopicPartition("topic", 0), _config).right.get
 
         // Make sure the Point table is empty
         redisClient.del(table.pointsKey)
 
-        table.addPoint(Point(100, Clock.systemUTC().instant().toEpochMilli), redisClient) shouldBe Inserted
-        table.addPoint(Point(200, Clock.systemUTC().instant().toEpochMilli), redisClient) shouldBe UpdatedRetention
+        table.addPoint(
+          Point(100, Clock.systemUTC().instant().toEpochMilli),
+          redisClient
+        ) shouldBe Inserted
+        table.addPoint(
+          Point(200, Clock.systemUTC().instant().toEpochMilli),
+          redisClient
+        ) shouldBe UpdatedRetention
         Thread.sleep(1000)
-        table.addPoint(Point(200, Clock.systemUTC().instant().toEpochMilli), redisClient) shouldBe Inserted
+        table.addPoint(
+          Point(200, Clock.systemUTC().instant().toEpochMilli),
+          redisClient
+        ) shouldBe Inserted
         Thread.sleep(1000)
-        table.addPoint(Point(200, Clock.systemUTC().instant().toEpochMilli), redisClient) shouldBe UpdatedSameOffset
-        table.addPoint(Point(300, Clock.systemUTC().instant().toEpochMilli), redisClient) shouldBe Inserted
-
+        table.addPoint(
+          Point(200, Clock.systemUTC().instant().toEpochMilli),
+          redisClient
+        ) shouldBe UpdatedSameOffset
+        table.addPoint(
+          Point(300, Clock.systemUTC().instant().toEpochMilli),
+          redisClient
+        ) shouldBe Inserted
 
         if (table.length(redisClient) != 3) {
-          fail(s"Expected table to limit to 3 entries (current is ${table.length(redisClient)})")
+          fail(
+            s"Expected table to limit to 3 entries (current is ${table.length(redisClient)})"
+          )
         }
 
         // Sleeping 1 seconds for the first point to expire
         Thread.sleep(1000)
-        table.addPoint(Point(400, Clock.systemUTC().instant().toEpochMilli), redisClient) shouldBe Inserted
+        table.addPoint(
+          Point(400, Clock.systemUTC().instant().toEpochMilli),
+          redisClient
+        ) shouldBe Inserted
 
         if (table.length(redisClient) != 3) {
-          fail(s"Expected table to limit to 3 entries (current is ${table.length(redisClient)})")
+          fail(
+            s"Expected table to limit to 3 entries (current is ${table.length(redisClient)})"
+          )
         }
 
         Thread.sleep(1000)
-        table.addPoint(Point(500, Clock.systemUTC().instant().toEpochMilli), redisClient) shouldBe Inserted
+        table.addPoint(
+          Point(500, Clock.systemUTC().instant().toEpochMilli),
+          redisClient
+        ) shouldBe Inserted
 
         if (table.length(redisClient) != 2) {
-          fail(s"Expected table to limit to 2 entries (current is ${table.length(redisClient)})")
+          fail(
+            s"Expected table to limit to 2 entries (current is ${table.length(redisClient)})"
+          )
         }
       }
 
@@ -214,7 +272,9 @@ class LookupTableSpec extends AnyFreeSpec with Matchers {
 
         val result = table.mostRecentPoint(redisClient)
         if (result.isRight) {
-          fail(s"Expected most recent point on empty table to fail with an error, but got $result")
+          fail(
+            s"Expected most recent point on empty table to fail with an error, but got $result"
+          )
         }
 
         for (n <- 0 to 10) {
@@ -222,11 +282,15 @@ class LookupTableSpec extends AnyFreeSpec with Matchers {
           val result = table.mostRecentPoint(redisClient)
 
           if (result.isLeft) {
-            fail(s"Most recent point on $table returned error unexpectedly: $result")
+            fail(
+              s"Most recent point on $table returned error unexpectedly: $result"
+            )
           }
 
           if (n != result.right.get.offset) {
-            fail(s"Most recent point on $table expected $n, but got ${result.right.get.offset}")
+            fail(
+              s"Most recent point on $table expected $n, but got ${result.right.get.offset}"
+            )
           }
         }
       }
@@ -393,19 +457,25 @@ class LookupTableSpec extends AnyFreeSpec with Matchers {
         val result = table.mostRecentPoint()
 
         if (result.isRight) {
-          fail(s"Expected most recent point on empty table to fail with an error, but got $result")
+          fail(
+            s"Expected most recent point on empty table to fail with an error, but got $result"
+          )
         }
 
         for (n <- 0 to 10) {
-          table.addPoint(Point(n, n*10))
+          table.addPoint(Point(n, n * 10))
           val result = table.mostRecentPoint()
 
           if (result.isLeft) {
-            fail(s"Most recent point on $table returned error unexpectedly: $result")
+            fail(
+              s"Most recent point on $table returned error unexpectedly: $result"
+            )
           }
 
           if (n != result.right.get.offset) {
-            fail(s"Most recent point on $table expected $n, but got ${result.right.get.offset}")
+            fail(
+              s"Most recent point on $table expected $n, but got ${result.right.get.offset}"
+            )
           }
         }
       }

@@ -28,7 +28,13 @@ class ConsumerGroupCollectorSpec
     with MockitoSugar {
   val client: KafkaClientContract = mock[KafkaClientContract]
   val redisConfig: RedisConfig = RedisConfig(enabled = false)
-  val config = ConsumerGroupCollector.CollectorConfig(0 seconds, 20, redisConfig, KafkaCluster("default", ""), Clock.fixed(Instant.ofEpochMilli(0), ZoneId.systemDefault()))
+  val config = ConsumerGroupCollector.CollectorConfig(
+    0 seconds,
+    20,
+    redisConfig,
+    KafkaCluster("default", ""),
+    Clock.fixed(Instant.ofEpochMilli(0), ZoneId.systemDefault())
+  )
   val clusterName = config.cluster.name
 
   val timestampNow = 200
@@ -40,7 +46,8 @@ class ConsumerGroupCollectorSpec
     lookupTable.left.get.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
-      topicPartitionTables = TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
+      topicPartitionTables =
+        TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
     )
 
     val behavior = ConsumerGroupCollector.collector(
@@ -187,11 +194,14 @@ class ConsumerGroupCollectorSpec
     lookupTable2.left.get.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
-      topicPartitionTables = TopicPartitionTable(Map(
-        topicPartition0 -> lookupTable0,
-        topicPartition1 -> lookupTable1,
-        topicPartition2 -> lookupTable2
-      ), config),
+      topicPartitionTables = TopicPartitionTable(
+        Map(
+          topicPartition0 -> lookupTable0,
+          topicPartition1 -> lookupTable1,
+          topicPartition2 -> lookupTable2
+        ),
+        config
+      )
     )
 
     val behavior = ConsumerGroupCollector.collector(
@@ -266,12 +276,15 @@ class ConsumerGroupCollectorSpec
     lookupTable3.left.get.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
-      topicPartitionTables = TopicPartitionTable(Map(
-        topicPartition0 -> lookupTable0,
-        topicPartition1 -> lookupTable1,
-        topicPartition2 -> lookupTable2,
-        topic2Partition0 -> lookupTable3
-      ), config),
+      topicPartitionTables = TopicPartitionTable(
+        Map(
+          topicPartition0 -> lookupTable0,
+          topicPartition1 -> lookupTable1,
+          topicPartition2 -> lookupTable2,
+          topic2Partition0 -> lookupTable3
+        ),
+        config
+      )
     )
 
     val behavior = ConsumerGroupCollector.collector(
@@ -353,7 +366,8 @@ class ConsumerGroupCollectorSpec
     lookupTable.left.get.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
-      topicPartitionTables = TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
+      topicPartitionTables =
+        TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
     )
 
     val behavior = ConsumerGroupCollector.collector(
@@ -490,7 +504,8 @@ class ConsumerGroupCollectorSpec
 
     def newState() = {
       val lastTimestamp = timestampNow - 100
-      val tpTables = TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
+      val tpTables =
+        TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
       ConsumerGroupCollector.CollectorState(
         topicPartitionTables = tpTables,
         lastSnapshot = Some(
@@ -717,7 +732,9 @@ class ConsumerGroupCollectorSpec
           any[ConsumerGroupCollector.CollectorConfig],
           any[KafkaClient.KafkaClientContract],
           any[List[ActorRef[MetricsSink.Message]]],
-          argThat[ConsumerGroupCollector.CollectorState](_.topicPartitionTables.tables.isEmpty),
+          argThat[ConsumerGroupCollector.CollectorState](
+            _.topicPartitionTables.tables.isEmpty
+          ),
           any[Option[RedisClient]]
         )
       }

@@ -20,8 +20,8 @@ object LookupTable {
 
   case class Point(offset: Long, time: Long)
 
-  /**
-    * Try to convert a String to a Long. Return Either a Long if conversion succeed or None if a NumberFormatException is raised
+  /** Try to convert a String to a Long. Return Either a Long if conversion
+    * succeed or None if a NumberFormatException is raised
     */
   def toLong(s: String): Option[Long] = {
     try {
@@ -31,12 +31,10 @@ object LookupTable {
     }
   }
 
-  /**
-    * linear interpolation, solve for the x intercept given y (val), slope (dy/dx), and starting point (right)
+  /** linear interpolation, solve for the x intercept given y (val), slope
+    * (dy/dx), and starting point (right)
     */
-  def predict(offset: Long,
-              left: Point,
-              right: Point): Result = {
+  def predict(offset: Long, left: Point, right: Point): Result = {
     val dx = (right.time - left.time).toDouble
     val dy = (right.offset - left.offset).toDouble
     val Px = right.time.toDouble
@@ -45,39 +43,68 @@ object LookupTable {
   }
 
   case class RedisTable(tp: TopicPartition, config: CollectorConfig) {
-    val pointsKey: String = config.redis.prefix + config.redis.separator + config.cluster.name + config.redis.separator + tp.topic + config.redis.separator + tp.partition + config.redis.separator + "points"
-    val lastUpdatedKey: String = config.redis.prefix + config.redis.separator + config.cluster.name + config.redis.separator + tp.topic + config.redis.separator + tp.partition + config.redis.separator + "updated"
+    val pointsKey: String =
+      config.redis.prefix + config.redis.separator + config.cluster.name + config.redis.separator + tp.topic + config.redis.separator + tp.partition + config.redis.separator + "points"
+    val lastUpdatedKey: String =
+      config.redis.prefix + config.redis.separator + config.cluster.name + config.redis.separator + tp.topic + config.redis.separator + tp.partition + config.redis.separator + "updated"
 
-    /**
-     * Add the `Point` to the table.
-     */
-    def addPoint(point: Point,
-                 redisClient: RedisClient,
-                 currentTimestamp: Long = Clock.systemUTC().instant().toEpochMilli): PointResult = {
+    /** Add the `Point` to the table.
+      */
+    def addPoint(
+        point: Point,
+        redisClient: RedisClient,
+        currentTimestamp: Long = Clock.systemUTC().instant().toEpochMilli
+    ): PointResult = {
       mostRecentPoint(redisClient) match {
         // new point is out of order
         case Right(mrp) if mrp.time >= point.time => OutOfOrder
         // new point is not part of a monotonically increasing set
         case Right(mrp) if mrp.offset > point.offset => NonMonotonic
         // compress flat lines to a single segment
-        case Right(mrp) if mrp.offset == point.offset &&
-          length(redisClient) > 1 &&
-          mostRecentPoint(redisClient, 1, 1).right.get.offset == point.offset =>
+        case Right(mrp)
+            if mrp.offset == point.offset &&
+              length(redisClient) > 1 &&
+              mostRecentPoint(
+                redisClient,
+                1,
+                1
+              ).right.get.offset == point.offset =>
           // update the most recent point
           removeExpiredPoints(redisClient)
-          val times = redisClient.zrangebyscore(key = pointsKey, min = point.offset, max = point.offset, limit = Some((0, 2): (Int, Int))).get
-          redisClient.zremrangebyscore(key = pointsKey, start = point.offset, end = point.offset)
-          redisClient.zadd(pointsKey, point.offset.toDouble, times.minBy(_.toLong))
+          val times = redisClient
+            .zrangebyscore(
+              key = pointsKey,
+              min = point.offset,
+              max = point.offset,
+              limit = Some((0, 2): (Int, Int))
+            )
+            .get
+          redisClient.zremrangebyscore(
+            key = pointsKey,
+            start = point.offset,
+            end = point.offset
+          )
+          redisClient.zadd(
+            pointsKey,
+            point.offset.toDouble,
+            times.minBy(_.toLong)
+          )
           redisClient.zadd(pointsKey, point.offset.toDouble, point.time)
           expireKeys(redisClient)
           UpdatedSameOffset
         case Right(mrp) =>
           // dequeue oldest point if we've hit the limit
           removeExpiredPoints(redisClient)
-          val lastUpdatedTimestamp = redisClient.get(lastUpdatedKey).getOrElse("0")
+          val lastUpdatedTimestamp =
+            redisClient.get(lastUpdatedKey).getOrElse("0")
           toLong(lastUpdatedTimestamp) match {
-            case Some(lastUpdatedTimestamp) if currentTimestamp - lastUpdatedTimestamp < config.redis.resolution.toMillis =>
-              redisClient.zremrangebyscore(key = pointsKey, start = mrp.offset, end = mrp.offset)
+            case Some(lastUpdatedTimestamp)
+                if currentTimestamp - lastUpdatedTimestamp < config.redis.resolution.toMillis =>
+              redisClient.zremrangebyscore(
+                key = pointsKey,
+                start = mrp.offset,
+                end = mrp.offset
+              )
               redisClient.zadd(pointsKey, point.offset.toDouble, point.time)
               expireKeys(redisClient)
               UpdatedRetention
@@ -98,17 +125,18 @@ object LookupTable {
       }
     }
 
-    /**
-     * Expire keys in Redis with the configured TTL
-     */
+    /** Expire keys in Redis with the configured TTL
+      */
     def expireKeys(redisClient: RedisClient): Unit = {
       redisClient.expire(pointsKey, config.redis.expiration.toSeconds.toInt)
-      redisClient.expire(lastUpdatedKey, config.redis.expiration.toSeconds.toInt)
+      redisClient.expire(
+        lastUpdatedKey,
+        config.redis.expiration.toSeconds.toInt
+      )
     }
 
-    /**
-     * Remove points that are older than the configured retention
-     */
+    /** Remove points that are older than the configured retention
+      */
     def removeExpiredPoints(redisClient: RedisClient): Unit = {
       val currentTimestamp: Long = Clock.systemUTC().instant().toEpochMilli
       val loop = new Breaks
@@ -117,53 +145,71 @@ object LookupTable {
           oldestPoint(redisClient) match {
             case Left(_) => loop.break() // No Data
             case Right(p) =>
-              if (currentTimestamp - config.redis.retention.toMillis > p.time) removeOldestPoint(redisClient)
+              if (currentTimestamp - config.redis.retention.toMillis > p.time)
+                removeOldestPoint(redisClient)
               else loop.break()
           }
         }
       }
     }
 
-    /**
-     * Remove the oldest point
-     */
+    /** Remove the oldest point
+      */
     def removeOldestPoint(redisClient: RedisClient): Unit = {
       redisClient.zremrangebyrank(pointsKey, 0, 0)
     }
 
-    /**
-     * Predict the timestamp of a provided offset using interpolation if in the sliding window, or extrapolation if outside the sliding window.
-     */
-    def lookup(offset: Long,
-               redisClient: RedisClient): Result = {
+    /** Predict the timestamp of a provided offset using interpolation if in the
+      * sliding window, or extrapolation if outside the sliding window.
+      */
+    def lookup(offset: Long, redisClient: RedisClient): Result = {
       def estimate(): Result = {
         // Look in the sorted set for an exact point. It can happens by chance or during flattened range
-        redisClient zrangebyscore(key = pointsKey, min = offset.toDouble, max = offset.toDouble, limit = Some((0, 1): (Int, Int)), sortAs = RedisClient.DESC) match {
+        redisClient zrangebyscore (key = pointsKey, min = offset.toDouble, max =
+          offset.toDouble, limit = Some((0, 1): (Int, Int)), sortAs =
+          RedisClient.DESC) match {
           // unexpected situation where the redis result is None
           case None => return RedisNone
-          case Some(points) if points.nonEmpty => return Prediction(points.head.toDouble)
+          case Some(points) if points.nonEmpty =>
+            return Prediction(points.head.toDouble)
           case Some(_) => // Exact point not found, moving to range calculation
         }
 
-        var left: Either[String, Point] = redisClient.zrangebyscoreWithScore(key = pointsKey, min = 0, max = offset.toDouble, maxInclusive = false , limit = Some((0, 1): (Int, Int)), sortAs = RedisClient.DESC) match {
+        var left: Either[String, Point] = redisClient.zrangebyscoreWithScore(
+          key = pointsKey,
+          min = 0,
+          max = offset.toDouble,
+          maxInclusive = false,
+          limit = Some((0, 1): (Int, Int)),
+          sortAs = RedisClient.DESC
+        ) match {
           // unexpected situation where the redis result is None
           case None => return RedisNone
           // find the left Point from the offset
-          case Some(lefts) if lefts.nonEmpty => Right(Point(lefts.head._2.toLong, lefts.head._1.toLong))
+          case Some(lefts) if lefts.nonEmpty =>
+            Right(Point(lefts.head._2.toLong, lefts.head._1.toLong))
           // offset is not between any two points in the table
           case _ =>
-            //extrapolated = true
+            // extrapolated = true
             Left("Extrapolation required")
         }
 
-        var right: Either[String, Point] = redisClient.zrangebyscoreWithScore(key = pointsKey, min = offset.toDouble, minInclusive = false, max = Double.PositiveInfinity, limit = Some((0, 1): (Int, Int)), sortAs = RedisClient.ASC) match {
+        var right: Either[String, Point] = redisClient.zrangebyscoreWithScore(
+          key = pointsKey,
+          min = offset.toDouble,
+          minInclusive = false,
+          max = Double.PositiveInfinity,
+          limit = Some((0, 1): (Int, Int)),
+          sortAs = RedisClient.ASC
+        ) match {
           // unexpected situation where the redis result is None
           case None => return RedisNone
           // find the right Point from the offset
-          case Some(rights) if rights.nonEmpty || left.isLeft => Right(Point(rights.head._2.toLong, rights.head._1.toLong))
+          case Some(rights) if rights.nonEmpty || left.isLeft =>
+            Right(Point(rights.head._2.toLong, rights.head._1.toLong))
           // offset is not between any two points in the table
           case _ =>
-            //extrapolated = true
+            // extrapolated = true
             Left("Extrapolation required")
         }
 
@@ -182,32 +228,53 @@ object LookupTable {
 
       mostRecentPoint(redisClient) match {
         case Right(mrp) if mrp.offset == offset => LagIsZero
-        case _ if length(redisClient) < 2 => TooFewPoints
-        case _ => estimate()
+        case _ if length(redisClient) < 2       => TooFewPoints
+        case _                                  => estimate()
       }
     }
 
-    /**
-     * Return the oldest `Point`.  Returns either an error message, or the `Point`.
-     */
-    def oldestPoint(redisClient: RedisClient, start: Int = 0, end: Int = 0): Either[String, Point] = {
-      val r = redisClient.zrangeWithScore(key = pointsKey, start = start, end = end, sortAs = RedisClient.ASC).get
+    /** Return the oldest `Point`. Returns either an error message, or the
+      * `Point`.
+      */
+    def oldestPoint(
+        redisClient: RedisClient,
+        start: Int = 0,
+        end: Int = 0
+    ): Either[String, Point] = {
+      val r = redisClient
+        .zrangeWithScore(
+          key = pointsKey,
+          start = start,
+          end = end,
+          sortAs = RedisClient.ASC
+        )
+        .get
       if (r.isEmpty) Left("No data in redis")
       else Right(Point(r.head._2.toLong, r.head._1.toLong))
     }
 
-    /**
-     * Return the size of the lookup table.
-     */
+    /** Return the size of the lookup table.
+      */
     def length(redisClient: RedisClient): Long = {
       redisClient.zcount(pointsKey).getOrElse(0)
     }
 
-    /**
-     * Return the most recently added `Point`.  Returns either an error message, or the `Point`.
-     */
-    def mostRecentPoint(redisClient: RedisClient, start: Int = 0, end: Int = 0): Either[String, Point] = {
-      val r = redisClient.zrangeWithScore(key = pointsKey, start = start, end = end, sortAs = RedisClient.DESC).get
+    /** Return the most recently added `Point`. Returns either an error message,
+      * or the `Point`.
+      */
+    def mostRecentPoint(
+        redisClient: RedisClient,
+        start: Int = 0,
+        end: Int = 0
+    ): Either[String, Point] = {
+      val r = redisClient
+        .zrangeWithScore(
+          key = pointsKey,
+          start = start,
+          end = end,
+          sortAs = RedisClient.DESC
+        )
+        .get
       if (r.isEmpty) Left("No data in redis")
       else Right(Point(r.head._2.toLong, r.head._1.toLong))
     }
@@ -287,14 +354,18 @@ object LookupTable {
   }
 
   object Table {
-    def apply(tp: TopicPartition, config: CollectorConfig): Either[MemoryTable, RedisTable] = {
+    def apply(
+        tp: TopicPartition,
+        config: CollectorConfig
+    ): Either[MemoryTable, RedisTable] = {
       if (config.redis.enabled)
         Right(RedisTable(tp, config))
       else
         Left(MemoryTable(config.lookupTableSize, mutable.Queue[Point]()))
     }
 
-    def apply(limit: Int): MemoryTable = MemoryTable(limit, mutable.Queue[Point]())
+    def apply(limit: Int): MemoryTable =
+      MemoryTable(limit, mutable.Queue[Point]())
     sealed trait Result
     case object TooFewPoints extends Result
     case object LagIsZero extends Result
