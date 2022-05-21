@@ -302,10 +302,7 @@ object ConsumerGroupCollector {
         state.scheduledCollect.cancel()
         Behaviors.stopped { () =>
           client.close()
-          redisClient match {
-            case Some(client) => client.close()
-            case None         =>
-          }
+          redisClient.foreach(_.close())
           evictAllClusterMetrics(context.log, config, reporters, state)
           context.log.info(
             "Gracefully stopped polling and Kafka client for cluster: {}",
@@ -315,10 +312,7 @@ object ConsumerGroupCollector {
       case (context, StopWithError(t)) =>
         state.scheduledCollect.cancel()
         client.close()
-        redisClient match {
-          case Some(client) => client.close()
-          case None         =>
-        }
+        redisClient.foreach(_.close())
         evictAllClusterMetrics(context.log, config, reporters, state)
         throw new Exception(
           "A failure occurred while retrieving offsets.  Shutting down.",

@@ -200,7 +200,7 @@ helm install kafka-lag-exporter/kafka-lag-exporter \
   --set serviceAccount.create=true
 ```
 
-Install with redis persistence enabled
+Install with Redis persistence enabled
 
 ```
 helm install kafka-lag-exporter/kafka-lag-exporter \
@@ -286,7 +286,7 @@ General Configuration (`kafka-lag-exporter{}`)
 | `client-group-id`             | `kafkalagexporter`   | Consumer group id of kafka-lag-exporter's client connections                                                                          |
 | `kafka-client-timeout`        | `10 seconds`         | Connection timeout when making API calls to Kafka                                                                                     |
 | `clusters`                    | `[]`                 | A statically defined list of Kafka connection details.  This list is optional if you choose to use the Strimzi auto-discovery feature |
-| `redis`                       | `{}`                 | Configuration for the redis persistence. This category is optional                                                                    |
+| `redis`                       | `{}`                 | Configuration for the Redis persistence. This category is optional                                                                    |
 | `watchers`                    | `{}`                 | Settings for Kafka cluster "watchers" used for auto-discovery.                                                                        |
 | `metric-whitelist`            | `[".*"]`             | Regex of metrics to be exposed via Prometheus endpoint. Eg. `[".*_max_lag.*", "kafka_partition_latest_offset"]`                       |
 
@@ -308,7 +308,7 @@ Redis Details (`kafka-lag-exporter.redis{}`)
 
 | Key          | Default                | Required | Description                                                                                                         |
 |--------------|------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `enabled`    | `"false"`              | No       | Switch to enable or disable the Redis table (if enabled, the memory tables will not be created).                    |
+| `enabled`    | `false`                | No       | Switch to enable or disable the Redis table (if enabled, the memory tables will not be created).                    |
 | `database`   | `0`                    | No       | Redis database number.                                                                                              |
 | `host`       | `"localhost"`          | No       | Redis server to use.                                                                                                |
 | `port`       | `6379`                 | No       | Redis port to use.                                                                                                  |
@@ -317,7 +317,7 @@ Redis Details (`kafka-lag-exporter.redis{}`)
 | `separator`  | `":"`                  | No       | Separator used to build the keys.                                                                                   |
 | `resolution` | `"1 minute"`           | No       | Resolution of the lookup table. Last point will get updated if the collection interval is less than the resolution. |
 | `retention`  | `"1 day"`              | No       | Retention of the lookup table. Points will get removed from the table after that.                                   |
-| `expiration` | `"1 day"`              | No       | Expiration (TTL) of all the keys                                                                                    |
+| `expiration` | `"1 day"`              | No       | Expiration (TTL) of all the keys.                                                                                   |
 
 
 Watchers (`kafka-lag-exporters.watchers{}`)
