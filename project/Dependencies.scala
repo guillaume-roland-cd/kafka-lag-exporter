@@ -62,4 +62,6 @@ object Dependencies {
     "org.testcontainers" % "kafka" % Version.Testcontainers % Test
   val TestcontainersInfluxDb =
     "org.testcontainers" % "influxdb" % Version.Testcontainers % Test
+  val TestcontainersRedis =
+    "org.testcontainers" % "spock" % Version.Testcontainers % Test
 }

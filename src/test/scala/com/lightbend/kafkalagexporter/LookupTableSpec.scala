@@ -5,19 +5,60 @@
 
 package com.lightbend.kafkalagexporter
 
-import java.time.{Clock, Instant, ZoneId}
+import com.lightbend.kafkalagexporter.ConsumerGroupCollector.CollectorConfig
 
-import com.lightbend.kafkalagexporter.LookupTable.Table._
+import java.time.{Clock, Instant, ZoneId}
 import com.redis.RedisClient
 
+import com.lightbend.kafkalagexporter.LookupTable.Table.{LagIsZero, Prediction, TooFewPoints}
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
+import org.testcontainers.containers.GenericContainer
+import org.testcontainers.utility.DockerImageName
 
 import scala.concurrent.duration.{DurationInt, DurationLong}
 
-class LookupTableSpec extends AnyFreeSpec with Matchers {
+class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
 
   import com.lightbend.kafkalagexporter.LookupTable._
+
+  private val image = DockerImageName.parse("redis").withTag("5.0.3-alpine")
+  private val container: GenericContainer[_] = {
+    val c = new GenericContainer(image)
+    c.withExposedPorts(6379)
+    c
+  }
+
+  var redisConfig: RedisConfig = null
+  var redisClient: RedisClient = null
+  var config: CollectorConfig = null
+  var table: RedisTable = null
+
+  override def beforeAll(): Unit = {
+    container.start()
+    redisConfig = RedisConfig(
+      enabled = true,
+      resolution = 0.second,
+      retention = Long.MaxValue.nanoseconds,
+      expiration = 30.minute,
+      host = container.getHost,
+      port = container.getFirstMappedPort
+    )
+    redisClient = new RedisClient(redisConfig.host, redisConfig.port)
+    config = ConsumerGroupCollector.CollectorConfig(
+      0.second,
+      20,
+      redisConfig,
+      KafkaCluster("default", ""),
+      Clock.fixed(Instant.ofEpochMilli(0), ZoneId.systemDefault())
+    )
+    table = Table(Domain.TopicPartition("topic", 0), config).right.get
+  }
+
+  override def afterAll(): Unit = {
+    container.stop()
+  }
 
   "LookupTable" - {
 
