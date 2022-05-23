@@ -282,7 +282,7 @@ General Configuration (`kafka-lag-exporter{}`)
 | `reporters.influxdb.async`    | `true`               | Flag to enable influxdb async **non-blocking** write mode to send metrics      
 | `sinks`                       | `["PrometheusEndpointSink"]` | Specify which reporters must be used to send metrics. Possible values are: `PrometheusEndpointSink`, `InfluxDBPusherSink`, `GraphiteEndpointSink`.  (if not set, only Prometheus is activated)     
 | `poll-interval`               | `30 seconds`         | How often to poll Kafka for latest and group offsets                                                                                  |
-| `lookup-table-size`           | `60`                 | The maximum window size of the look up table **per partition**                                                                        |
+| `lookup-table.memory.size`    | `60`                 | The maximum window size of the in memory look up table **per partition**                                                              |
 | `client-group-id`             | `kafkalagexporter`   | Consumer group id of kafka-lag-exporter's client connections                                                                          |
 | `kafka-client-timeout`        | `10 seconds`         | Connection timeout when making API calls to Kafka                                                                                     |
 | `clusters`                    | `[]`                 | A statically defined list of Kafka connection details.  This list is optional if you choose to use the Strimzi auto-discovery feature |
@@ -304,11 +304,10 @@ Kafka Cluster Connection Details (`kafka-lag-exporter.clusters[]`)
 | `admin-client-properties` | `{}`        | No       | A map of key value pairs used to configure the `AdminClient`. See the [Admin Config](https://kafka.apache.org/documentation/#adminclientconfigs) section of the Kafka documentation for options.          |
 | `labels`                  | `{}`        | No       | A map of key value pairs will be set as additional custom labels per cluster for all the metrics in prometheus.                                                                                           |
 
-Redis Details (`kafka-lag-exporter.redis{}`)
+Redis Details (`kafka-lag-exporter.lookup-table.redis{}`)
 
 | Key          | Default                | Required | Description                                                                                                         |
 |--------------|------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `enabled`    | `false`                | No       | Switch to enable or disable the Redis table (if enabled, the memory tables will not be created).                    |
 | `database`   | `0`                    | No       | Redis database number.                                                                                              |
 | `host`       | `"localhost"`          | No       | Redis server to use.                                                                                                |
 | `port`       | `6379`                 | No       | Redis port to use.                                                                                                  |

@@ -11,8 +11,18 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import com.lightbend.kafkalagexporter.ConsumerGroupCollector.OffsetsSnapshot.MetricKeys
 import com.lightbend.kafkalagexporter.KafkaClient.KafkaClientContract
-import com.lightbend.kafkalagexporter.LookupTable.Table._
-import com.redis._
+import com.lightbend.kafkalagexporter.LookupTable.AddPointResult.{
+  Inserted,
+  NonMonotonic,
+  OutOfOrder,
+  UpdatedRetention,
+  UpdatedSameOffset
+}
+import com.lightbend.kafkalagexporter.LookupTable.LookupResult.{
+  LagIsZero,
+  Prediction,
+  TooFewPoints
+}
 import org.slf4j.Logger
 
 import scala.collection.immutable
@@ -106,12 +116,11 @@ object ConsumerGroupCollector {
   }
 
   final case class CollectorConfig(
-                                    pollInterval: FiniteDuration,
-                                    lookupTableSize: Int,
-                                    redis: RedisConfig,
-                                    cluster: KafkaCluster,
-                                    clock: Clock = Clock.systemUTC()
-                                  )
+      pollInterval: FiniteDuration,
+      lookupTableConfig: LookupTableConfig,
+      cluster: KafkaCluster,
+      clock: Clock = Clock.systemUTC()
+  )
 
   final case class CollectorState(
       lastSnapshot: Option[OffsetsSnapshot] = None,
@@ -136,13 +145,17 @@ object ConsumerGroupCollector {
           "Spawned ConsumerGroupCollector for cluster: {}",
           config.cluster.name
         )
-
         context.self ! Collect
 
-      var redisClient: Option[RedisClient] = None
-      if (config.redis.enabled) {
-        context.log.info("Creating a Redis client")
-        redisClient = Some(new RedisClient(database = config.redis.database, host = config.redis.host, port = config.redis.port, timeout = config.redis.timeout))
+        val collectorState = CollectorState(
+          topicPartitionTables = Domain.TopicPartitionTable(config = config)
+        )
+        collector(
+          config,
+          clientCreator(config.cluster),
+          reporters,
+          collectorState
+        )
       }
       val collectorState = CollectorState(
            topicPartitionTables = Domain.TopicPartitionTable(config = config))
@@ -152,22 +165,29 @@ object ConsumerGroupCollector {
       SupervisorStrategy.restartWithBackoff(1 seconds, 10 seconds, 0.2)
     )
 
-  def collector(config: CollectorConfig,
-                client: KafkaClientContract,
-                reporters: List[ActorRef[MetricsSink.Message]],
-                state: CollectorState,
-                redisClient: Option[RedisClient] = None): Behavior[Message] = 
-   (new CollectorBehavior).collector(config, client, reporters, state, redisClient)
+  def collector(
+      config: CollectorConfig,
+      client: KafkaClientContract,
+      reporters: List[ActorRef[MetricsSink.Message]],
+      state: CollectorState
+  ): Behavior[Message] =
+    (new CollectorBehavior).collector(
+      config,
+      client,
+      reporters,
+      state
+    )
 
   // TODO: Ideally this wouldn't be in a class, like the other behaviors, but at this time there's no other way to
   // TODO: assert state transition changes. See `ConsumerGroupCollectorSpec` which uses mockito to assert the state
   // TODO: transition change
   class CollectorBehavior {
-    def collector(config: CollectorConfig,
-                  client: KafkaClientContract,
-                  reporters: List[ActorRef[MetricsSink.Message]],
-                  state: CollectorState,
-                  redisClient: Option[RedisClient] = None): Behavior[Message] = Behaviors.receive {
+    def collector(
+        config: CollectorConfig,
+        client: KafkaClientContract,
+        reporters: List[ActorRef[MetricsSink.Message]],
+        state: CollectorState
+    ): Behavior[Message] = Behaviors.receive {
       case (context, _: Collect) =>
         implicit val ec: ExecutionContextExecutor = context.executionContext
 
@@ -223,13 +243,24 @@ object ConsumerGroupCollector {
           state.lastSnapshot.map(_.diff(snapshot)).getOrElse(MetricKeys())
 
         context.log.info("Updating lookup tables")
-        refreshLookupTable(context.log, state.topicPartitionTables, snapshot, evictedKeys.tps, redisClient)
+        refreshLookupTable(
+          context.log,
+          state.topicPartitionTables,
+          snapshot,
+          evictedKeys.tps
+        )
 
         reporters.foreach { reporter =>
           context.log.info("Reporting offsets")
           reportEarliestOffsetMetrics(config, reporter, snapshot)
           reportLatestOffsetMetrics(config, reporter, snapshot)
-          reportConsumerGroupMetrics(context.log, config, reporter, snapshot, state.topicPartitionTables, redisClient)
+          reportConsumerGroupMetrics(
+            context.log,
+            config,
+            reporter,
+            snapshot,
+            state.topicPartitionTables
+          )
 
           context.log.info("Clearing evicted metrics")
           evictMetricsFromReporter(config, reporter, evictedKeys)
@@ -242,7 +273,7 @@ object ConsumerGroupCollector {
             context.scheduleOnce(config.pollInterval, context.self, Collect)
         )
 
-        collector(config, client, reporters, newState, redisClient)
+        collector(config, client, reporters, newState)
 
       case (context, metaData: MetaData) =>
         context.log.debug("Received Meta data:\n{}", metaData)
@@ -255,10 +286,7 @@ object ConsumerGroupCollector {
         state.scheduledCollect.cancel()
         Behaviors.stopped { () =>
           client.close()
-          redisClient match {
-            case Some(client) => client.close()
-            case None =>
-          }
+          config.lookupTableConfig.close()
           evictAllClusterMetrics(context.log, config, reporters, state)
           context.log.info(
             "Gracefully stopped polling and Kafka client for cluster: {}",
@@ -268,10 +296,7 @@ object ConsumerGroupCollector {
       case (context, StopWithError(t)) =>
         state.scheduledCollect.cancel()
         client.close()
-        redisClient match {
-          case Some(client) => client.close()
-          case None =>
-        }
+        config.lookupTableConfig.close()
         evictAllClusterMetrics(context.log, config, reporters, state)
         throw new Exception(
           "A failure occurred while retrieving offsets.  Shutting down.",
@@ -298,37 +323,73 @@ object ConsumerGroupCollector {
     /** Refresh Lookup table. Remove topic partitions that are no longer
       * relevant and update tables with new Point's.
       */
-    private def refreshLookupTable(log: Logger, topicPartitionTables: TopicPartitionTable, snapshot: OffsetsSnapshot, evictedTps: List[TopicPartition], redisClient: Option[RedisClient]): Unit = {
+    private def refreshLookupTable(
+        log: Logger,
+        topicPartitionTables: TopicPartitionTable,
+        snapshot: OffsetsSnapshot,
+        evictedTps: List[TopicPartition]
+    ): Unit = {
       topicPartitionTables.clear(evictedTps)
       for ((tp, point) <- snapshot.latestOffsets) {
-        topicPartitionTables(tp) match {
-          case Left(memory) =>
-            log.debug("  Point ({}, {}) was added in the in-memory lookup table ({}, {})", point.offset.toString, point.time.toString, tp.topic, tp.partition.toString)
-            memory.addPoint(point)
-          case Right(redis) =>
-            redisClient match {
-              case Some(client) =>
-                redis.addPoint(point, client) match {
-                  case Inserted => log.debug("  Point ({}, {}) was added in the redis lookup table ({}, {})", point.offset.toString, point.time.toString, tp.topic, tp.partition.toString)
-                  case NonMonotonic => log.debug("  Point ({}, {}) was not added in the redis lookup table ({}, {}) because it was not part of a monotonically increasing set", point.offset.toString, point.time.toString, tp.topic, tp.partition.toString)
-                  case OutOfOrder => log.debug("  Point ({}, {}) was not added in the redis lookup table ({}, {}) because the time is older than the previous point", point.offset.toString, point.time.toString, tp.topic, tp.partition.toString)
-                  case UpdatedRetention => log.debug("  Point ({}, {}) was updated in the redis lookup table ({}, {}) because the last insert was too recent", point.offset.toString, point.time.toString, tp.topic, tp.partition.toString)
-                  case UpdatedSameOffset => log.debug("  Point ({}, {}) was updated in the redis lookup table ({}, {}) because the offset was the same", point.offset.toString, point.time.toString, tp.topic, tp.partition.toString)
-                }
-              case None => log.error("  Point ({}, {}) was not added in the lookup table as the lookup table ({}, {}) is not in-memory nor in redis", point.offset.toString, point.time.toString, tp.topic, tp.partition.toString)
-            }
+        log.debug(
+          "  Point ({}, {}) was added to the lookup table ({}, {})",
+          point.offset.toString,
+          point.time.toString,
+          tp.topic,
+          tp.partition.toString
+        )
+        topicPartitionTables(tp).addPoint(point) match {
+          case Inserted =>
+            log.debug(
+              "  Point ({}, {}) was added to the lookup table ({}, {})",
+              point.offset.toString,
+              point.time.toString,
+              tp.topic,
+              tp.partition.toString
+            )
+          case NonMonotonic =>
+            log.debug(
+              "  Point ({}, {}) was not added to the lookup table ({}, {}) because it was not part of a monotonically increasing set",
+              point.offset.toString,
+              point.time.toString,
+              tp.topic,
+              tp.partition.toString
+            )
+          case OutOfOrder =>
+            log.debug(
+              "  Point ({}, {}) was not added to the lookup table ({}, {}) because the time is older than the previous point",
+              point.offset.toString,
+              point.time.toString,
+              tp.topic,
+              tp.partition.toString
+            )
+          case UpdatedRetention =>
+            log.debug(
+              "  Point ({}, {}) was updated in the lookup table ({}, {}) because the last insert was too recent",
+              point.offset.toString,
+              point.time.toString,
+              tp.topic,
+              tp.partition.toString
+            )
+          case UpdatedSameOffset =>
+            log.debug(
+              "  Point ({}, {}) was updated in the lookup table ({}, {}) because the offset was the same",
+              point.offset.toString,
+              point.time.toString,
+              tp.topic,
+              tp.partition.toString
+            )
         }
       }
     }
 
     private def reportConsumerGroupMetrics(
-                                           log: Logger,
-                                           config: CollectorConfig,
-                                           reporter: ActorRef[MetricsSink.Message],
-                                           offsetsSnapshot: OffsetsSnapshot,
-                                           tables: TopicPartitionTable,
-                                           redisClient: Option[RedisClient]
-                                          ): Unit = {
+        log: Logger,
+        config: CollectorConfig,
+        reporter: ActorRef[MetricsSink.Message],
+        offsetsSnapshot: OffsetsSnapshot,
+        tables: TopicPartitionTable
+    ): Unit = {
       val groupLag: immutable.Iterable[GroupPartitionLag] = for {
         (gtp, groupPoint) <- offsetsSnapshot.lastGroupOffsets
         (_, mostRecentPoint) <- offsetsSnapshot.latestOffsets.filterKeys(_ == gtp.tp)
@@ -336,18 +397,13 @@ object ConsumerGroupCollector {
         val (groupOffset, offsetLag, timeLag) = groupPoint match {
           case Some(point) =>
             val groupOffset = point.offset.toDouble
-            val timeLagResult = tables(gtp.tp) match {
-              case Left(memory) =>
-                log.debug("Find time lag for offset {} using the in-memory lookup table ({}, {})", point.offset.toString, gtp.tp.topic, gtp.tp.partition.toString)
-                memory.lookup(point.offset)
-              case Right(redis) =>
-                redisClient match {
-                  case Some(client) =>
-                    log.debug("Find time lag for offset {} using the redis lookup table ({}, {})", point.offset.toString, gtp.tp.topic, gtp.tp.partition.toString)
-                    redis.lookup(point.offset, client)
-                  case None => log.error("Unable to find the time lag for offset {} as the lookup table ({}, {}) is not in-memory nor in redis", point.offset.toString, gtp.tp.topic, gtp.tp.partition.toString)
-                }
-            }
+            log.debug(
+              "Find time lag for offset {} in the lookup table ({}, {})",
+              point.offset.toString,
+              gtp.tp.topic,
+              gtp.tp.partition.toString
+            )
+            val timeLagResult = tables(gtp.tp).lookup(point.offset)
             val timeLag = timeLagResult match {
               case Prediction(pxTime) => (point.time.toDouble - pxTime) / 1000
               case LagIsZero          => 0d

@@ -6,14 +6,13 @@
 package com.lightbend.kafkalagexporter
 
 import java.time.{Clock, Instant, ZoneId}
-
 import akka.actor.testkit.typed.scaladsl.{BehaviorTestKit, TestInbox}
 import akka.actor.typed.ActorRef
 import com.lightbend.kafkalagexporter.KafkaClient.KafkaClientContract
 import com.lightbend.kafkalagexporter.LookupTable._
 import com.lightbend.kafkalagexporter.Domain._
 import com.lightbend.kafkalagexporter.Metrics._
-import com.redis.RedisClient
+import com.typesafe.config.ConfigFactory
 import org.mockito.MockitoSugar
 import org.mockito.ArgumentMatchers._
 import org.scalatest.freespec.AnyFreeSpec
@@ -27,8 +26,15 @@ class ConsumerGroupCollectorSpec
     with TestData
     with MockitoSugar {
   val client: KafkaClientContract = mock[KafkaClientContract]
-  val redisConfig: RedisConfig = RedisConfig(enabled = false)
-  val config = ConsumerGroupCollector.CollectorConfig(0 seconds, 20, redisConfig, KafkaCluster("default", ""), Clock.fixed(Instant.ofEpochMilli(0), ZoneId.systemDefault()))
+  val tableConfig = new LookupTableConfig.MemoryTableConfig(
+    ConfigFactory.parseString("lookup-table.memory.size = 20")
+  )
+  val config = ConsumerGroupCollector.CollectorConfig(
+    0 seconds,
+    tableConfig,
+    KafkaCluster("default", ""),
+    Clock.fixed(Instant.ofEpochMilli(0), ZoneId.systemDefault())
+  )
   val clusterName = config.cluster.name
 
   val timestampNow = 200
@@ -36,8 +42,8 @@ class ConsumerGroupCollectorSpec
   "ConsumerGroupCollector should send" - {
     val reporter = TestInbox[MetricsSink.Message]()
 
-    val lookupTable: Either[MemoryTable, RedisTable] = Left(Table(20))
-    lookupTable.left.get.addPoint(Point(100, 100))
+    val lookupTable = MemoryTable(tableConfig)
+    lookupTable.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
       topicPartitionTables = TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
@@ -179,12 +185,12 @@ class ConsumerGroupCollectorSpec
   "ConsumerGroupCollector should calculate max group metrics and send" - {
     val reporter = TestInbox[MetricsSink.Message]()
 
-    val lookupTable0: Either[MemoryTable, RedisTable] = Left(Table(20))
-    lookupTable0.left.get.addPoint(Point(100, 100))
-    val lookupTable1: Either[MemoryTable, RedisTable] = Left(Table(20))
-    lookupTable1.left.get.addPoint(Point(100, 100))
-    val lookupTable2: Either[MemoryTable, RedisTable] = Left(Table(20))
-    lookupTable2.left.get.addPoint(Point(100, 100))
+    val lookupTable0 = MemoryTable(tableConfig)
+    lookupTable0.addPoint(Point(100, 100))
+    val lookupTable1 = MemoryTable(tableConfig)
+    lookupTable1.addPoint(Point(100, 100))
+    val lookupTable2 = MemoryTable(tableConfig)
+    lookupTable2.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
       topicPartitionTables = TopicPartitionTable(Map(
@@ -256,14 +262,14 @@ class ConsumerGroupCollectorSpec
   "ConsumerGroupCollector should sum the group offset lag metrics and send" - {
     val reporter = TestInbox[MetricsSink.Message]()
 
-    val lookupTable0: Either[MemoryTable, RedisTable] = Left(Table(20))
-    lookupTable0.left.get.addPoint(Point(100, 100))
-    val lookupTable1: Either[MemoryTable, RedisTable] = Left(Table(20))
-    lookupTable1.left.get.addPoint(Point(100, 100))
-    val lookupTable2: Either[MemoryTable, RedisTable] = Left(Table(20))
-    lookupTable2.left.get.addPoint(Point(100, 100))
-    val lookupTable3: Either[MemoryTable, RedisTable] = Left(Table(20))
-    lookupTable3.left.get.addPoint(Point(100, 100))
+    val lookupTable0 = MemoryTable(tableConfig)
+    lookupTable0.addPoint(Point(100, 100))
+    val lookupTable1 = MemoryTable(tableConfig)
+    lookupTable1.addPoint(Point(100, 100))
+    val lookupTable2 = MemoryTable(tableConfig)
+    lookupTable2.addPoint(Point(100, 100))
+    val lookupTable3 = MemoryTable(tableConfig)
+    lookupTable3.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
       topicPartitionTables = TopicPartitionTable(Map(
@@ -349,8 +355,8 @@ class ConsumerGroupCollectorSpec
   "ConsumerGroupCollector should report group offset, lag, and time lag as NaN when no group offsets found" - {
     val reporter = TestInbox[MetricsSink.Message]()
 
-    val lookupTable: Either[MemoryTable, RedisTable] = Left(Table(20))
-    lookupTable.left.get.addPoint(Point(100, 100))
+    val lookupTable = MemoryTable(tableConfig)
+    lookupTable.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
       topicPartitionTables = TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
@@ -485,8 +491,8 @@ class ConsumerGroupCollectorSpec
   "ConsumerGroupCollector should evict data when group metadata changes" - {
     val reporter = TestInbox[MetricsSink.Message]()
 
-    val lookupTable: Either[MemoryTable, RedisTable] = Left(Table(20))
-    lookupTable.left.get.addPoint(Point(100, 100))
+    val lookupTable = MemoryTable(tableConfig)
+    lookupTable.addPoint(Point(100, 100))
 
     def newState() = {
       val lastTimestamp = timestampNow - 100
@@ -717,8 +723,9 @@ class ConsumerGroupCollectorSpec
           any[ConsumerGroupCollector.CollectorConfig],
           any[KafkaClient.KafkaClientContract],
           any[List[ActorRef[MetricsSink.Message]]],
-          argThat[ConsumerGroupCollector.CollectorState](_.topicPartitionTables.tables.isEmpty),
-          any[Option[RedisClient]]
+          argThat[ConsumerGroupCollector.CollectorState](
+            _.topicPartitionTables.tables.isEmpty
+          )
         )
       }
 

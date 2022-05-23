@@ -20,8 +20,6 @@ object AppConfig {
   def apply(config: Config): AppConfig = {
     val c = config.getConfig("kafka-lag-exporter")
     val pollInterval = c.getDuration("poll-interval").toScala
-    val lookupTableSize = c.getInt("lookup-table-size")
-
     val metricWhitelist = c.getStringList("metric-whitelist").asScala.toList
 
     val sinks =
@@ -41,6 +39,8 @@ object AppConfig {
         case _ => None
       }
     }
+
+    val lookupTable = LookupTableConfig(c)
 
     val clientGroupId = c.getString("client-group-id")
     val kafkaClientTimeout = c.getDuration("kafka-client-timeout").toScala
@@ -103,140 +103,17 @@ object AppConfig {
         )
       }
 
-    val redis = c.getConfig("redis")
-    val enabled =
-      if (redis.hasPath("enabled"))
-        redis.getBoolean("enabled")
-      else RedisConfig.EnabledDefault
-
-    val database =
-      if (redis.hasPath("database"))
-        redis.getInt("database")
-      else RedisConfig.DatabaseDefault
-
-    val host =
-      if (redis.hasPath("host"))
-        redis.getString("host")
-      else RedisConfig.HostDefault
-
-    val port =
-      if (redis.hasPath("port"))
-        redis.getInt("port")
-      else RedisConfig.PortDefault
-
-    val timeout =
-      if (redis.hasPath("timeout"))
-        redis.getInt("timeout")
-      else RedisConfig.TimeoutDefault
-
-    val prefix =
-      if (redis.hasPath("prefix"))
-        redis.getString("prefix")
-      else RedisConfig.PrefixDefault
-
-    val separator =
-      if (redis.hasPath("separator"))
-        redis.getString("separator")
-      else RedisConfig.SeparatorDefault
-
-    val resolution =
-      if (redis.hasPath("resolution"))
-        redis.getDuration("resolution").toScala
-      else RedisConfig.ResolutionDefault
-
-    val retention =
-      if (redis.hasPath("retention"))
-        redis.getDuration("retention").toScala
-      else RedisConfig.RetentionDefault
-
-    val expiration =
-      if (redis.hasPath("expiration"))
-        redis.getDuration("expiration").toScala
-      else RedisConfig.ExpirationDefault
-
-    val redisConfig: RedisConfig = new RedisConfig(
-      enabled,
-      database,
-      host,
-      port,
-      timeout,
-      prefix,
-      separator,
-      resolution,
-      retention,
-      expiration
-    )
-
-      KafkaCluster(
-        clusterConfig.getString("name"),
-        clusterConfig.getString("bootstrap-brokers"),
-        groupWhitelist,
-        groupBlacklist,
-        topicWhitelist,
-        topicBlacklist,
-        consumerProperties,
-        adminClientProperties,
-        labels
-      )
-    }
-
-    val redis = c.getConfig("redis")
-    val enabled = if (redis.hasPath("enabled"))
-      redis.getBoolean("enabled")
-    else RedisConfig.EnabledDefault
-
-    val database = if (redis.hasPath("database"))
-      redis.getInt("database")
-    else RedisConfig.DatabaseDefault
-
-    val host = if (redis.hasPath("host"))
-      redis.getString("host")
-    else RedisConfig.HostDefault
-
-    val port = if (redis.hasPath("port"))
-      redis.getInt("port")
-    else RedisConfig.PortDefault
-
-    val timeout = if (redis.hasPath("timeout"))
-      redis.getInt("timeout")
-    else RedisConfig.TimeoutDefault
-
-    val prefix = if (redis.hasPath("prefix"))
-      redis.getString("prefix")
-    else RedisConfig.PrefixDefault
-
-    val separator = if (redis.hasPath("separator"))
-      redis.getString("separator")
-    else RedisConfig.SeparatorDefault
-
-    val resolution = if (redis.hasPath("resolution"))
-      redis.getDuration("resolution").toScala
-    else RedisConfig.ResolutionDefault
-
-    val retention = if (redis.hasPath("retention"))
-      redis.getDuration("retention").toScala
-    else RedisConfig.RetentionDefault
-
-    val expiration = if (redis.hasPath("expiration"))
-      redis.getDuration("expiration").toScala
-    else RedisConfig.ExpirationDefault
-
-    val redisConfig: RedisConfig = new RedisConfig(
-      enabled,
-      database,
-      host,
-      port,
-      timeout,
-      prefix,
-      separator,
-      resolution,
-      retention,
-      expiration
-    )
-
     val strimziWatcher = c.getString("watchers.strimzi").toBoolean
 
-    AppConfig(pollInterval, lookupTableSize, sinkConfigs, clientGroupId, kafkaClientTimeout, clusters, redisConfig, strimziWatcher)
+    AppConfig(
+      pollInterval,
+      lookupTable,
+      sinkConfigs,
+      clientGroupId,
+      kafkaClientTimeout,
+      clusters,
+      strimziWatcher
+    )
   }
 
   // Copied from Alpakka Kafka
@@ -317,64 +194,31 @@ final case class KafkaCluster(
   }
 }
 
-object RedisConfig {
-  val EnabledDefault: Boolean = false
-  val DatabaseDefault: Int = 0
-  val HostDefault: String = "localhost"
-  val PortDefault: Int = 6379
-  val TimeoutDefault: Int = 60
-  val PrefixDefault: String = "kafka-lag-exporter"
-  val SeparatorDefault: String = ":"
-  val ResolutionDefault: Duration = Duration("1 minute")
-  val RetentionDefault: Duration = Duration("1 day")
-  val ExpirationDefault: Duration = Duration("1 day")
-}
-
-final case class RedisConfig(enabled: Boolean = RedisConfig.EnabledDefault,
-                             database: Int = RedisConfig.DatabaseDefault,
-                             host: String = RedisConfig.HostDefault,
-                             port: Int = RedisConfig.PortDefault,
-                             timeout: Int = RedisConfig.TimeoutDefault,
-                             prefix: String = RedisConfig.PrefixDefault,
-                             separator: String = RedisConfig.SeparatorDefault,
-                             resolution: Duration = RedisConfig.ResolutionDefault,
-                             retention: Duration = RedisConfig.RetentionDefault,
-                             expiration: Duration = RedisConfig.ExpirationDefault) {
-  override def toString: String = {
-    s"""|  Enabled: $enabled
-        |  Database: $database
-        |  Host: $host
-        |  Port: $port
-        |  Timeout: $timeout
-        |  Prefix: $prefix
-        |  Separator: $separator
-        |  Resolution: $resolution
-        |  Retention: $retention
-        |  Expiration: $expiration
-     """.stripMargin
-  }
-}
-
-final case class AppConfig(pollInterval: FiniteDuration, lookupTableSize: Int, sinkConfigs: List[SinkConfig], clientGroupId: String,
-                           clientTimeout: FiniteDuration, clusters: List[KafkaCluster], redis: RedisConfig, strimziWatcher: Boolean) {
+final case class AppConfig(
+    pollInterval: FiniteDuration,
+    lookupTable: LookupTableConfig,
+    sinkConfigs: List[SinkConfig],
+    clientGroupId: String,
+    clientTimeout: FiniteDuration,
+    clusters: List[KafkaCluster],
+    strimziWatcher: Boolean
+) {
   override def toString(): String = {
     val clusterString =
       if (clusters.isEmpty)
         "  (none)"
       else clusters.map(_.toString).mkString("\n")
     val sinksString = sinkConfigs.mkString("")
-    val redisString = redis.toString()
+    val lookupTableString = lookupTable.toString()
     s"""
        |Poll interval: $pollInterval
-       |Lookup table size: $lookupTableSize
+       |$lookupTableString
        |Metrics whitelist: [${sinkConfigs.head.metricWhitelist.mkString(", ")}]
        |Admin client consumer group id: $clientGroupId
        |Kafka client timeout: $clientTimeout
        |$sinksString
        |Statically defined Clusters:
        |$clusterString
-       |Redis:
-       |$redisString
        |Watchers:
        |  Strimzi: $strimziWatcher
      """.stripMargin
