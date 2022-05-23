@@ -321,7 +321,7 @@ object ConsumerGroupCollector {
     }
 
     /** Refresh Lookup table. Remove topic partitions that are no longer
-      * relevant and update tables with new Point's.
+      * relevant and update tables with new Points.
       */
     private def refreshLookupTable(
         log: Logger,
@@ -331,13 +331,6 @@ object ConsumerGroupCollector {
     ): Unit = {
       topicPartitionTables.clear(evictedTps)
       for ((tp, point) <- snapshot.latestOffsets) {
-        log.debug(
-          "  Point ({}, {}) was added to the lookup table ({}, {})",
-          point.offset.toString,
-          point.time.toString,
-          tp.topic,
-          tp.partition.toString
-        )
         topicPartitionTables(tp).addPoint(point) match {
           case Inserted =>
             log.debug(

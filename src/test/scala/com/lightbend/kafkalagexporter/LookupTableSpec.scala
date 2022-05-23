@@ -85,11 +85,6 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
 
   "LookupTable" - {
 
-    "toLong" in {
-      toLong("1646985399302") shouldBe Some(1646985399302L)
-      toLong("string") shouldBe None
-    }
-
     "RedisTable" - {
       val redisConfig = RedisConfig(enabled = true, resolution = 0.second, retention = Long.MaxValue.nanoseconds, expiration = 30.minute)
       val config = ConsumerGroupCollector.CollectorConfig(0.second, 20, redisConfig, KafkaCluster("default", ""), Clock.fixed(Instant.ofEpochMilli(0), ZoneId.systemDefault()))
@@ -100,7 +95,7 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
         // Make sure the Point table is empty
         redisClient.del(table.pointsKey)
 
-        if (table.length() > 0) {
+        if (table.length > 0) {
           fail(s"New table should be empty $table")
         }
 
@@ -120,7 +115,7 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
         table.addPoint(Point(-1, 110))
         table.addPoint(Point(-1, -1))
 
-        if (table.length() != 1) {
+        if (table.length != 1) {
           fail(s"Expected out of order to be skipped $table")
         }
       }
@@ -132,7 +127,7 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
         table.addPoint(Point(100, 100)) shouldBe Inserted
         table.addPoint(Point(200, 200)) shouldBe Inserted
 
-        table.length() shouldEqual 2
+        table.length shouldEqual 2
 
         val tests = List[Long](150, 190, 110, // interpolation
           10, 0, -100, // extrapolation under the table
@@ -153,9 +148,9 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
         table.addPoint(Point(200, 120))
         table.addPoint(Point(200, 700))
 
-        if (table.length() != 3) {
+        if (table.length != 3) {
           fail(
-            s"Expected table to have 3 entries (it has ${table.length()}). Table should truncate compress middle value for offset 200."
+            s"Expected table to have 3 entries (it has ${table.length}). Table should truncate compress middle value for offset 200."
           )
         }
 
@@ -201,7 +196,7 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
         table.addPoint(Point(100, 300))
         table.addPoint(Point(100, 400))
 
-        if (table.length() != 2) {
+        if (table.length != 2) {
           fail(s"Expected flat entries to compress to a single entry $table")
         }
 
@@ -260,9 +255,9 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
           Point(300, Clock.systemUTC().instant().toEpochMilli)
         ) shouldBe Inserted
 
-        if (table.length() != 3) {
+        if (table.length != 3) {
           fail(
-            s"Expected table to limit to 3 entries (current is ${table.length()})"
+            s"Expected table to limit to 3 entries (current is ${table.length})"
           )
         }
 
@@ -272,9 +267,9 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
           Point(400, Clock.systemUTC().instant().toEpochMilli)
         ) shouldBe Inserted
 
-        if (table.length() != 3) {
+        if (table.length != 3) {
           fail(
-            s"Expected table to limit to 3 entries (current is ${table.length()})"
+            s"Expected table to limit to 3 entries (current is ${table.length})"
           )
         }
 
@@ -283,9 +278,9 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
           Point(500, Clock.systemUTC().instant().toEpochMilli)
         ) shouldBe Inserted
 
-        if (table.length() != 2) {
+        if (table.length != 2) {
           fail(
-            s"Expected table to limit to 2 entries (current is ${table.length()})"
+            s"Expected table to limit to 2 entries (current is ${table.length})"
           )
         }
       }
@@ -300,7 +295,7 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
         table.addPoint(Point(3000, 3))
         table.addPoint(Point(40000, 4))
 
-        if (table.length() != 5) {
+        if (table.length != 5) {
           fail(s"Expected table to limit to 5 entries $table")
         }
 
