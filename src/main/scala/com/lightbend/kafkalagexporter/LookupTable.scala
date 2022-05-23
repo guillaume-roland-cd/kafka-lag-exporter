@@ -6,10 +6,17 @@
 package com.lightbend.kafkalagexporter
 
 import com.lightbend.kafkalagexporter.LookupTable.LookupResult.Prediction
-import com.lightbend.kafkalagexporter.LookupTable.{AddPointResult, LookupResult, Point}
+import com.lightbend.kafkalagexporter.LookupTable.{
+  AddPointResult,
+  LookupResult,
+  Point
+}
 
 import java.time.Clock
-import com.lightbend.kafkalagexporter.LookupTableConfig.{MemoryTableConfig, RedisTableConfig}
+import com.lightbend.kafkalagexporter.LookupTableConfig.{
+  MemoryTableConfig,
+  RedisTableConfig
+}
 import com.redis.RedisClient
 
 import scala.collection.mutable
@@ -17,8 +24,9 @@ import scala.util.Try
 import scala.util.control._
 
 sealed trait LookupTable {
-  /** Add the `Point` to the table.
-    * Note: `point.time` should be considered the "current" timestamp.
+
+  /** Add the `Point` to the table. Note: `point.time` should be considered the
+    * "current" timestamp.
     */
   def addPoint(point: Point): AddPointResult
   def lookup(offset: Long): LookupResult
@@ -27,8 +35,7 @@ sealed trait LookupTable {
     */
   def length: Long
 
-  /**
-    * Is this point the same reading as the last 2 most recent points?
+  /** Is this point the same reading as the last 2 most recent points?
     */
   def isFlat(point: Point): Boolean
 
@@ -312,12 +319,13 @@ object LookupTable {
       else Right(Point(r.head._2.toLong, r.head._1.toLong))
     }
 
-    /**
-      * Is this point the same reading as the last 2 most recent points?
+    /** Is this point the same reading as the last 2 most recent points?
       */
     override def isFlat(point: Point): Boolean = {
-      length > 1 && mostRecentPoint().toOption.exists(_.offset == point.offset) &&
-        mostRecentPoint(1, 1).toOption.exists(_.offset == point.offset)
+      length > 1 && mostRecentPoint().toOption.exists(
+        _.offset == point.offset
+      ) &&
+      mostRecentPoint(1, 1).toOption.exists(_.offset == point.offset)
     }
   }
 
@@ -399,7 +407,10 @@ object LookupTable {
       */
     override def length: Long = points.length
 
-    override def isFlat(point: Point): Boolean = length > 1 && mostRecentPoint().toOption.exists(_.offset == point.offset) &&
-      points(points.length - 2).offset == point.offset
+    override def isFlat(point: Point): Boolean =
+      length > 1 && mostRecentPoint().toOption.exists(
+        _.offset == point.offset
+      ) &&
+        points(points.length - 2).offset == point.offset
   }
 }
