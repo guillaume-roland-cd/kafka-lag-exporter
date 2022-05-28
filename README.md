@@ -283,10 +283,10 @@ General Configuration (`kafka-lag-exporter{}`)
 | `sinks`                       | `["PrometheusEndpointSink"]` | Specify which reporters must be used to send metrics. Possible values are: `PrometheusEndpointSink`, `InfluxDBPusherSink`, `GraphiteEndpointSink`.  (if not set, only Prometheus is activated)     
 | `poll-interval`               | `30 seconds`         | How often to poll Kafka for latest and group offsets                                                                                  |
 | `lookup-table.memory.size`    | `60`                 | The maximum window size of the in memory look up table **per partition**                                                              |
+| `lookup-table.redis`          | `{}`                 | Configuration for the Redis persistence. This category is optional and will override use of the in memory lookup table if defined     |
 | `client-group-id`             | `kafkalagexporter`   | Consumer group id of kafka-lag-exporter's client connections                                                                          |
 | `kafka-client-timeout`        | `10 seconds`         | Connection timeout when making API calls to Kafka                                                                                     |
 | `clusters`                    | `[]`                 | A statically defined list of Kafka connection details.  This list is optional if you choose to use the Strimzi auto-discovery feature |
-| `redis`                       | `{}`                 | Configuration for the Redis persistence. This category is optional                                                                    |
 | `watchers`                    | `{}`                 | Settings for Kafka cluster "watchers" used for auto-discovery.                                                                        |
 | `metric-whitelist`            | `[".*"]`             | Regex of metrics to be exposed via Prometheus endpoint. Eg. `[".*_max_lag.*", "kafka_partition_latest_offset"]`                       |
 
@@ -336,7 +336,7 @@ kafka-lag-exporter {
       port = 9999
     }
   }
-  lookup-table-size = 120
+  lookup-table.memory.size = 120
   clusters = [
     {
       name = "a-cluster"
@@ -356,10 +356,6 @@ kafka-lag-exporter {
       }
     }
   ]
-  redis = {
-    enabled = "true"
-    host = "myredis.prod"
-  }
 }
 ```
 

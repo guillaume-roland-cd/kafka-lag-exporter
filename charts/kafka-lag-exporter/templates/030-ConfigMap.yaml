@@ -9,7 +9,7 @@ data:
     kafka-lag-exporter {
       port = {{ .Values.service.port }}
       poll-interval = {{ .Values.pollIntervalSeconds }} seconds
-      lookup-table-size = {{ .Values.lookupTableSize }}
+      lookup-table.memory.size = {{ .Values.lookupTableSize }}
       client-group-id = "{{ .Values.clientGroupId }}"
       kafka-client-timeout = {{ .Values.kafkaClientTimeoutSeconds }} seconds
       clusters = [
@@ -74,10 +74,7 @@ data:
         {{- end }}
       ]
       {{- if .Values.redis.enabled }}
-      redis = {
-        {{- with .Values.redis.enabled }}
-        enabled = {{ . | quote }}
-        {{- end }}
+      lookup-table.redis = {
         {{- with .Values.redis.host }}
         host = {{ . | quote }}
         {{- end }}
