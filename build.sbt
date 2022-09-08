@@ -96,33 +96,24 @@ lazy val kafkaLagExporter =
         val layerCopy = layerIdsAscending.map { layerId =>
           val files = dockerBaseDirectory.split(UnixSeparatorChar)(1)
           val path = layerId.map(i => s"$i/$files").getOrElse(s"$files")
-          Cmd("COPY", s"$path /$files")
+          Cmd("COPY", "--chown=1001:1001", s"$path /$files")
         }
-        Seq(Cmd("FROM", "redhat/ubi8:latest")) ++
-          Seq(
-            Cmd(
-              "RUN",
-              "yum update -y && yum -y install java-17-openjdk-headless && yum clean all -y"
-            ),
-            Cmd("RUN", "useradd -r -m -u 1001 kafkalagexporter")
-          ) ++
-          layerCopy ++ Seq(
-            labels,
-            Cmd(
-              "RUN",
-              "chgrp -R 1001 /opt && chmod -R g=u /opt && chmod +x /opt/docker/bin/kafka-lag-exporter"
-            ),
-            Cmd("WORKDIR", "/opt/docker"),
-            Cmd("USER", "1001")
-          ) ++
-          dockerExposedPorts.value.map(p => Cmd("EXPOSE", p.toString)) ++ Seq(
-            ExecCmd(
-              "CMD",
-              "/opt/docker/bin/kafka-lag-exporter",
-              "-Dconfig.file=/opt/docker/conf/application.conf",
-              "-Dlogback.configurationFile=/opt/docker/conf/logback.xml"
-            )
+        Seq(
+          Cmd("FROM", "amazoncorretto:17"),
+          Cmd("WORKDIR", "/opt/docker"),
+          Cmd("USER", "1001"),
+          labels
+        ) ++
+        layerCopy ++
+        dockerExposedPorts.value.map(p => Cmd("EXPOSE", p.toString)) ++ 
+        Seq(
+          ExecCmd(
+            "CMD",
+            "/opt/docker/bin/kafka-lag-exporter",
+            "-Dconfig.file=/opt/docker/conf/application.conf",
+            "-Dlogback.configurationFile=/opt/docker/conf/logback.xml"
           )
+        )
       },
       updateHelmChart := {
         import scala.sys.process._
