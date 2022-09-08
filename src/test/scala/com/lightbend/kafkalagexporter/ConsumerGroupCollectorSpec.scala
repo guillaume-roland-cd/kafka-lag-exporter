@@ -46,7 +46,8 @@ class ConsumerGroupCollectorSpec
     lookupTable.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
-      topicPartitionTables = TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
+      topicPartitionTables =
+        TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
     )
 
     val behavior = ConsumerGroupCollector.collector(
@@ -193,11 +194,14 @@ class ConsumerGroupCollectorSpec
     lookupTable2.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
-      topicPartitionTables = TopicPartitionTable(Map(
-        topicPartition0 -> lookupTable0,
-        topicPartition1 -> lookupTable1,
-        topicPartition2 -> lookupTable2
-      ), config),
+      topicPartitionTables = TopicPartitionTable(
+        Map(
+          topicPartition0 -> lookupTable0,
+          topicPartition1 -> lookupTable1,
+          topicPartition2 -> lookupTable2
+        ),
+        config
+      )
     )
 
     val behavior = ConsumerGroupCollector.collector(
@@ -272,12 +276,15 @@ class ConsumerGroupCollectorSpec
     lookupTable3.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
-      topicPartitionTables = TopicPartitionTable(Map(
-        topicPartition0 -> lookupTable0,
-        topicPartition1 -> lookupTable1,
-        topicPartition2 -> lookupTable2,
-        topic2Partition0 -> lookupTable3
-      ), config),
+      topicPartitionTables = TopicPartitionTable(
+        Map(
+          topicPartition0 -> lookupTable0,
+          topicPartition1 -> lookupTable1,
+          topicPartition2 -> lookupTable2,
+          topic2Partition0 -> lookupTable3
+        ),
+        config
+      )
     )
 
     val behavior = ConsumerGroupCollector.collector(
@@ -359,7 +366,8 @@ class ConsumerGroupCollectorSpec
     lookupTable.addPoint(Point(100, 100))
 
     val state = ConsumerGroupCollector.CollectorState(
-      topicPartitionTables = TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
+      topicPartitionTables =
+        TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
     )
 
     val behavior = ConsumerGroupCollector.collector(
@@ -496,7 +504,8 @@ class ConsumerGroupCollectorSpec
 
     def newState() = {
       val lastTimestamp = timestampNow - 100
-      val tpTables = TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
+      val tpTables =
+        TopicPartitionTable(Map(topicPartition0 -> lookupTable), config)
       ConsumerGroupCollector.CollectorState(
         topicPartitionTables = tpTables,
         lastSnapshot = Some(

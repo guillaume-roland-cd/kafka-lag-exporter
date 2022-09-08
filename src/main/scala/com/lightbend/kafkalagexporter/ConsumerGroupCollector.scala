@@ -157,9 +157,6 @@ object ConsumerGroupCollector {
           collectorState
         )
       }
-      val collectorState = CollectorState(
-           topicPartitionTables = Domain.TopicPartitionTable(config = config))
-      collector(config, clientCreator(config.cluster), reporters, collectorState, redisClient)
     }
     .onFailure(
       SupervisorStrategy.restartWithBackoff(1 seconds, 10 seconds, 0.2)
@@ -385,7 +382,9 @@ object ConsumerGroupCollector {
     ): Unit = {
       val groupLag: immutable.Iterable[GroupPartitionLag] = for {
         (gtp, groupPoint) <- offsetsSnapshot.lastGroupOffsets
-        (_, mostRecentPoint) <- offsetsSnapshot.latestOffsets.filterKeys(_ == gtp.tp)
+        (_, mostRecentPoint) <- offsetsSnapshot.latestOffsets.filterKeys(
+          _ == gtp.tp
+        )
       } yield {
         val (groupOffset, offsetLag, timeLag) = groupPoint match {
           case Some(point) =>
@@ -491,13 +490,18 @@ object ConsumerGroupCollector {
     }
 
     private def reportLatestOffsetMetrics(
-                                           config: CollectorConfig,
-                                           reporter: ActorRef[MetricsSink.Message],
-                                           offsetsSnapshot: OffsetsSnapshot
-                                         ): Unit = {
+        config: CollectorConfig,
+        reporter: ActorRef[MetricsSink.Message],
+        offsetsSnapshot: OffsetsSnapshot
+    ): Unit = {
       for {
         (tp, point: LookupTable.Point) <- offsetsSnapshot.latestOffsets
-      } reporter ! Metrics.TopicPartitionValueMessage(Metrics.LatestOffsetMetric, config.cluster.name, tp, point.offset)
+      } reporter ! Metrics.TopicPartitionValueMessage(
+        Metrics.LatestOffsetMetric,
+        config.cluster.name,
+        tp,
+        point.offset
+      )
     }
 
     private def evictMetricsFromReporter(

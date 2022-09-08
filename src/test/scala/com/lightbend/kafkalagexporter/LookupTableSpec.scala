@@ -86,11 +86,6 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
   "LookupTable" - {
 
     "RedisTable" - {
-      val redisConfig = RedisConfig(enabled = true, resolution = 0.second, retention = Long.MaxValue.nanoseconds, expiration = 30.minute)
-      val config = ConsumerGroupCollector.CollectorConfig(0.second, 20, redisConfig, KafkaCluster("default", ""), Clock.fixed(Instant.ofEpochMilli(0), ZoneId.systemDefault()))
-      val redisClient = new RedisClient(host = "localhost", port = 6379)
-      val table = Table(Domain.TopicPartition("topic", 0), config).right.get
-
       "invalids and edge conditions" in {
         // Make sure the Point table is empty
         redisClient.del(table.pointsKey)
@@ -131,7 +126,7 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
 
         val tests = List[Long](150, 190, 110, // interpolation
           10, 0, -100, // extrapolation under the table
-          300, 100, // extrapolation over the table
+          300, 100 // extrapolation over the table
         )
 
         tests.foreach(expected =>
@@ -320,7 +315,9 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
 
         val result = table.mostRecentPoint()
         if (result.isRight) {
-          fail(s"Expected most recent point on empty table to fail with an error, but got $result")
+          fail(
+            s"Expected most recent point on empty table to fail with an error, but got $result"
+          )
         }
 
         for (n <- 0 to 10) {
@@ -328,11 +325,15 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
           val result = table.mostRecentPoint()
 
           if (result.isLeft) {
-            fail(s"Most recent point on $table returned error unexpectedly: $result")
+            fail(
+              s"Most recent point on $table returned error unexpectedly: $result"
+            )
           }
 
           if (n != result.right.get.offset) {
-            fail(s"Most recent point on $table expected $n, but got ${result.right.get.offset}")
+            fail(
+              s"Most recent point on $table expected $n, but got ${result.right.get.offset}"
+            )
           }
         }
       }
@@ -523,19 +524,25 @@ class LookupTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
         val result = table.mostRecentPoint()
 
         if (result.isRight) {
-          fail(s"Expected most recent point on empty table to fail with an error, but got $result")
+          fail(
+            s"Expected most recent point on empty table to fail with an error, but got $result"
+          )
         }
 
         for (n <- 0 to 10) {
-          table.addPoint(Point(n, n*10))
+          table.addPoint(Point(n, n * 10))
           val result = table.mostRecentPoint()
 
           if (result.isLeft) {
-            fail(s"Most recent point on $table returned error unexpectedly: $result")
+            fail(
+              s"Most recent point on $table returned error unexpectedly: $result"
+            )
           }
 
           if (n != result.right.get.offset) {
-            fail(s"Most recent point on $table expected $n, but got ${result.right.get.offset}")
+            fail(
+              s"Most recent point on $table expected $n, but got ${result.right.get.offset}"
+            )
           }
         }
       }
